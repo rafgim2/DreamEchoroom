@@ -307,10 +307,11 @@
       if (audioSender.track !== track) audioSender.replaceTrack(track);
     }
 
-    // Nuevo comportamiento de toggle para el botón de hablar
+    // Toggle para el botón de hablar: texto y color
     talkBtn.addEventListener('click', () => {
       pressingTalk = !pressingTalk;
       talkBtn.classList.toggle('active', pressingTalk);
+      talkBtn.textContent = pressingTalk ? '🔇 Silencio' : '🔊 Hablar';
       sendMessage({ type: 'talk', speaking: pressingTalk });
       updateMicState();
     });
