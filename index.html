@@ -25,7 +25,7 @@
       border-radius: 1em;
       box-sizing: border-box;
     }
-    h1 { font-size: 2.5em; margin: 0.2em 0; }
+    h1 { font-size: 2.5em; margin: .2em 0; }
     .pin-section { margin-bottom: 1em; }
     .pin-section input {
       padding: .6em; font-size: 1em; width: 60%; margin-right: .5em;
@@ -115,16 +115,14 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple size="4"></select>
+          <select id="midiOutSelect" multiple></select>
         </div>
         <div id="midiStatus"></div>
       </div>
 
       <div class="midi-section">
         <h3>MIDI a enviar (tu piano):</h3>
-        <div class="midi-controls">
-          <select id="midiInSelect"></select>
-        </div>
+        <div id="midiInSelectCont"></div>
         <div id="midiSendStatus"></div>
       </div>
 
@@ -142,23 +140,22 @@
     let pin, ws, pc, piano;
     let realAudioTrack, silentAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
-    let midiAccess, midiInputs = [], midiOutputs = [];
-    let midiOutDevices = [], midiInDevice, midiChannel;
+    let midiAccess, midiInputs = [], midiOutputs = [], selectedMidiOuts = [], midiInDevice, midiChannel;
 
-    const pinSection       = document.getElementById('pinSection');
-    const pinInput         = document.getElementById('pinInput');
-    const pinBtn           = document.getElementById('pinBtn');
-    const mainContent      = document.getElementById('mainContent');
-    const statusEl         = document.getElementById('status');
-    const oyentesEl        = document.getElementById('recuentoOyentes');
-    const localVideo       = document.getElementById('localVideo');
-    const remoteVideo      = document.getElementById('remoteVideo');
-    const talkBtn          = document.getElementById('talkBtn');
-    const midiOutSelect    = document.getElementById('midiOutSelect');
-    const midiStatus       = document.getElementById('midiStatus');
-    const midiInSelect     = document.getElementById('midiInSelect');
-    const midiSendStatus   = document.getElementById('midiSendStatus');
-    const keyboardEl       = document.getElementById('keyboard');
+    const pinSection        = document.getElementById('pinSection');
+    const pinInput          = document.getElementById('pinInput');
+    const pinBtn            = document.getElementById('pinBtn');
+    const mainContent       = document.getElementById('mainContent');
+    const statusEl          = document.getElementById('status');
+    const oyentesEl         = document.getElementById('recuentoOyentes');
+    const localVideo        = document.getElementById('localVideo');
+    const remoteVideo       = document.getElementById('remoteVideo');
+    const talkBtn           = document.getElementById('talkBtn');
+    const midiOutSelect     = document.getElementById('midiOutSelect');
+    const midiStatus        = document.getElementById('midiStatus');
+    const midiInSelectCont  = document.getElementById('midiInSelectCont');
+    const midiSendStatus    = document.getElementById('midiSendStatus');
+    const keyboardEl        = document.getElementById('keyboard');
 
     pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
@@ -263,7 +260,6 @@
         midiChannel = ev.channel;
         midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       };
-      // canal MIDI para emitir
       midiChannel = connection.createDataChannel('midi');
       midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       return connection;
@@ -318,7 +314,7 @@
       midiInputs  = Array.from(midiAccess.inputs.values());
       midiOutputs = Array.from(midiAccess.outputs.values());
 
-      // Salidas MIDI múltiples
+      // Salidas MIDI (selección múltiple)
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
         midiOutputs.forEach((o,i) => {
@@ -328,53 +324,47 @@
           midiOutSelect.appendChild(opt);
         });
         midiOutSelect.onchange = () => {
-          midiOutDevices = Array.from(midiOutSelect.selectedOptions)
-                                 .map(opt => midiOutputs[+opt.value]);
-          const names = midiOutDevices.map(d => d.name).join(', ');
-          midiStatus.textContent = names
-            ? `Salidas MIDI: ${names}`
-            : '(Sin salidas seleccionadas)';
+          const indices = Array.from(midiOutSelect.selectedOptions).map(opt => +opt.value);
+          selectedMidiOuts = indices.map(i => midiOutputs[i]);
+          midiStatus.textContent = selectedMidiOuts.length
+            ? `Enviando MIDI a ${selectedMidiOuts.map(d=>d.name).join(', ')}`
+            : '';
         };
       } else {
-        midiOutSelect.innerHTML = '<option>(No hay salidas MIDI físicas)</option>';
+        midiOutSelect.innerHTML = '<option>(No hay salidas MIDI conectadas)</option>';
       }
 
       // Entradas MIDI
-      midiInSelect.innerHTML = '';
+      midiInSelectCont.innerHTML = '';
       if (midiInputs.length) {
-        const defaultOpt = document.createElement('option');
-        defaultOpt.value = '';
-        defaultOpt.textContent = '-- Elige entrada MIDI --';
-        midiInSelect.appendChild(defaultOpt);
-        midiInputs.forEach((i,k) => {
-          const opt = document.createElement('option');
-          opt.value = k;
-          opt.textContent = i.name;
-          midiInSelect.appendChild(opt);
-        });
-        midiInSelect.onchange = () => {
+        const selIn = document.createElement('select');
+        selIn.innerHTML = '<option value="">-- Elige entrada MIDI --</option>';
+        midiInputs.forEach((i,k) =>
+          selIn.innerHTML += `<option value="${k}">${i.name}</option>`
+        );
+        selIn.onchange = () => {
           if (midiInDevice) midiInDevice.onmidimessage = null;
-          midiInDevice = midiInputs[+midiInSelect.value] || null;
+          midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
           if (midiInDevice) {
             midiInDevice.onmidimessage = ({ data }) => {
               if (midiChannel && midiChannel.readyState === 'open') {
                 midiChannel.send(JSON.stringify({ data: Array.from(data) }));
               }
             };
-            midiSendStatus.textContent = `Entrada MIDI: ${midiInDevice.name}`;
+            midiSendStatus.textContent = `Enviando MIDI desde: ${midiInDevice.name}`;
           } else {
             midiSendStatus.textContent = '';
           }
         };
+        midiInSelectCont.appendChild(selIn);
       } else {
-        midiInSelect.innerHTML = '<option>(No hay entradas MIDI)</option>';
+        midiInSelectCont.textContent = '(No hay entradas MIDI físicas conectadas)';
       }
     }
 
     function handleMidiMessage(msg) {
-      for (const dev of midiOutDevices) {
-        dev.send(new Uint8Array(msg.data));
-      }
+      const bytes = new Uint8Array(msg.data);
+      selectedMidiOuts.forEach(dev => dev.send(bytes));
     }
   </script>
 </body>
