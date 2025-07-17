@@ -82,10 +82,10 @@
     #midiOutSelect {
       max-height: 120px;
       overflow-y: auto;
-      width: 60%;
     }
+    /* si hay varias opciones, ancho al 60%, si no, en JS ajustamos */
     #midiOutSelect[multiple] {
-      display: block;
+      display: inline-block;
     }
     #midiStatus, #midiSendStatus {
       margin-top: .5em; color: #555;
@@ -337,6 +337,12 @@
           opt.textContent = o.name;
           midiOutSelect.appendChild(opt);
         });
+        // ajustar ancho según número de opciones
+        if (midiOutputs.length === 1) {
+          midiOutSelect.style.width = 'auto';
+        } else {
+          midiOutSelect.style.width = '60%';
+        }
         midiOutSelect.onchange = () => {
           selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
                                 .map(o => midiOutputs[+o.value]);
@@ -346,6 +352,7 @@
         };
       } else {
         midiOutSelect.innerHTML = '<option>(No hay salidas MIDI)</option>';
+        midiOutSelect.style.width = 'auto';
       }
 
       // Entradas MIDI
