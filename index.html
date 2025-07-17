@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>DreamEcho</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Necesario para convertir número MIDI a nombre de nota -->
+  <!-- Tone.js para sintetizar sonido y convertir número MIDI a nota -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js"></script>
   <style>
     body {
@@ -76,8 +76,7 @@
       align-items: center; gap: 1em; margin-bottom: .5em;
     }
     .midi-controls select {
-      padding: .4em; font-size: 1em;
-      width: auto;
+      padding: .4em; font-size: 1em; width: auto;
     }
     #midiStatus, #midiSendStatus {
       margin-top: .5em; color: #555;
@@ -95,9 +94,7 @@
 <body>
   <div class="marco">
     <h1>DreamEcho</h1>
-    <p><a href="https://www.youtube.com/@rafgim" target="_blank" rel="noopener">
-      © By Rafael Gimeno
-    </a></p>
+    <p><a href="https://www.youtube.com/@rafgim" target="_blank" rel="noopener">© By Rafael Gimeno</a></p>
 
     <div id="pinSection" class="pin-section">
       <input type="text" id="pinInput" placeholder="Introduce tu PIN de la sala">
@@ -122,9 +119,7 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple>
-            <!-- opciones dinámicas -->
-          </select>
+          <select id="midiOutSelect" multiple></select>
         </div>
         <div id="midiStatus"></div>
       </div>
@@ -151,6 +146,7 @@
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
+    let synth;
 
     const pinSection    = document.getElementById('pinSection');
     const pinInput      = document.getElementById('pinInput');
@@ -172,6 +168,7 @@
       if (!pin) return;
       pinSection.style.display = 'none';
       mainContent.style.display = 'block';
+
       piano = new PianoKeys.Keyboard(keyboardEl, {
         width: keyboardEl.clientWidth,
         height: keyboardEl.clientHeight,
@@ -179,6 +176,8 @@
         accidentalKeyColour: '#000',
         activeColour: '#4a4'
       });
+      synth = new Tone.Synth().toDestination();
+
       connectWebSocket();
     });
 
@@ -192,17 +191,13 @@
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
         if (msg.pin !== pin) return;
-        switch (msg.type) {
-          case 'stats':
-            oyentesEl.textContent = `Oyentes conectados: ${msg.clients}`;
-            break;
-          case 'signal':
-            await handleSignal(msg);
-            break;
-          case 'talk':
-            remoteSpeaking = msg.speaking;
-            updateMicState();
-            break;
+        if (msg.type === 'stats') {
+          oyentesEl.textContent = `Oyentes conectados: ${msg.clients}`;
+        } else if (msg.type === 'signal') {
+          await handleSignal(msg);
+        } else if (msg.type === 'talk') {
+          remoteSpeaking = msg.speaking;
+          updateMicState();
         }
       };
       ws.onerror = () => statusEl.textContent = 'Error en la conexión.';
@@ -324,7 +319,7 @@
       midiInputs  = Array.from(midiAccess.inputs.values());
       midiOutputs = Array.from(midiAccess.outputs.values());
 
-      // === Salidas MIDI (para recibir MIDI remoto) ===
+      // Salidas MIDI: llenamos selector y guardamos la lista
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
         midiOutputs.forEach((o,i) => {
@@ -336,12 +331,12 @@
         midiOutSelect.size = Math.min(midiOutputs.length, 4);
         midiOutSelect.onchange = () => {
           selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
-                                .map(o => midiOutputs[+o.value]);
+                                 .map(o => midiOutputs[+o.value]);
           midiStatus.textContent = selectedMidiOuts.length
             ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
             : '';
         };
-        // Si solo hay una salida, selección automática
+        // Si sólo hay una salida, selección automática
         if (midiOutputs.length === 1) {
           midiOutSelect.options[0].selected = true;
           midiOutSelect.onchange();
@@ -351,7 +346,7 @@
         midiOutSelect.size = 1;
       }
 
-      // === Entradas MIDI (tu piano) ===
+      // Entradas MIDI (tu piano)
       midiInSelectCont.innerHTML = '';
       if (midiInputs.length) {
         const selIn = document.createElement('select');
@@ -364,7 +359,7 @@
           midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
           if (midiInDevice) {
             midiInDevice.onmidimessage = ({ data }) => {
-              // Enviar sólo al otro participante, no reenvíes esto de vuelta a tu propio dispositivo
+              // enviamos tu propia señal MIDI al otro
               if (midiChannel && midiChannel.readyState === 'open') {
                 midiChannel.send(JSON.stringify({ data: Array.from(data) }));
               }
@@ -389,16 +384,18 @@
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // 1) Iluminar teclado:
+      // 1) Reproducir localmente
+      synth.triggerAttackRelease(noteName, '8n');
+
+      // 2) Iluminar teclado
       if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
       } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
       }
 
-      // 2) Enviar a tu dispositivo MIDI local seleccionado:
-      selectedMidiOuts.forEach(dev => {
-        // Esta llamada hará sonar el dispositivo hardware sin reenviarlo al otro
+      // 3) Reenviar a **todos** los puertos MIDI de salida locales
+      midiOutputs.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
     }
