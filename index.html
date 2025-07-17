@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <title>DreamEcho</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Necesario para convertir número MIDI a nombre de nota -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js"></script>
   <style>
     body {
       font-family: sans-serif;
@@ -76,7 +78,6 @@
     .midi-controls select {
       padding: .4em; font-size: 1em;
     }
-    /* tamaño del select múltiple */
     .midi-controls select[multiple] {
       height: auto;
       min-height: 4em;
@@ -121,7 +122,7 @@
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
           <select id="midiOutSelect" multiple>
-            <!-- Opciones rellenadas dinámicamente -->
+            <!-- opciones dinámicas -->
           </select>
         </div>
         <div id="midiStatus"></div>
@@ -150,20 +151,20 @@
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
 
-    const pinSection        = document.getElementById('pinSection');
-    const pinInput          = document.getElementById('pinInput');
-    const pinBtn            = document.getElementById('pinBtn');
-    const mainContent       = document.getElementById('mainContent');
-    const statusEl          = document.getElementById('status');
-    const oyentesEl         = document.getElementById('recuentoOyentes');
-    const localVideo        = document.getElementById('localVideo');
-    const remoteVideo       = document.getElementById('remoteVideo');
-    const talkBtn           = document.getElementById('talkBtn');
-    const midiOutSelect     = document.getElementById('midiOutSelect');
-    const midiStatus        = document.getElementById('midiStatus');
-    const midiInSelectCont  = document.getElementById('midiInSelectCont');
-    const midiSendStatus    = document.getElementById('midiSendStatus');
-    const keyboardEl        = document.getElementById('keyboard');
+    const pinSection    = document.getElementById('pinSection');
+    const pinInput      = document.getElementById('pinInput');
+    const pinBtn        = document.getElementById('pinBtn');
+    const mainContent   = document.getElementById('mainContent');
+    const statusEl      = document.getElementById('status');
+    const oyentesEl     = document.getElementById('recuentoOyentes');
+    const localVideo    = document.getElementById('localVideo');
+    const remoteVideo   = document.getElementById('remoteVideo');
+    const talkBtn       = document.getElementById('talkBtn');
+    const midiOutSelect = document.getElementById('midiOutSelect');
+    const midiStatus    = document.getElementById('midiStatus');
+    const midiInSelectCont = document.getElementById('midiInSelectCont');
+    const midiSendStatus   = document.getElementById('midiSendStatus');
+    const keyboardEl    = document.getElementById('keyboard');
 
     pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
@@ -268,7 +269,6 @@
         midiChannel = ev.channel;
         midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       };
-      // si somos ofertante, creamos canal MIDI
       midiChannel = connection.createDataChannel('midi');
       midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       return connection;
@@ -372,18 +372,18 @@
     }
 
     function handleMidiMessage(msg) {
-      const [status, note, velocity] = msg.data;
+      const [status, note, vel] = msg.data;
       const cmd = status & 0xf0;
-      // iluminar teclas
-      const noteName = window.PianoKeys.Frequency
-                        ? Tone.Frequency(note, 'midi').toNote()
-                        : null;
-      if (noteName && cmd === 0x90 && velocity > 0) {
+      const noteName = Tone.Frequency(note, 'midi').toNote();
+
+      // iluminar teclado
+      if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
-      } else if (noteName && (cmd === 0x80 || (cmd === 0x90 && velocity === 0))) {
+      } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
       }
-      // reenviar a dispositivos seleccionados
+
+      // reenviar a salidas seleccionadas
       selectedMidiOuts.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
