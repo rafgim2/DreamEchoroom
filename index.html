@@ -14,8 +14,6 @@
       background-color: #c1f7f2;
       margin: 0;
       min-height: 100vh;
-      overflow-x: hidden;
-      overflow-y: auto;
     }
     .marco {
       width: 90%;
@@ -38,12 +36,12 @@
       background: #2196f3; color: #fff;
     }
     #mainContent { display: none; }
-    #recuentoOyentes, #status {
+    #status, #recuentoOyentes {
       font-size: 1.1em; color: #555; margin: .5em 0;
     }
     .video-container {
       display: flex; gap: 1em; justify-content: center;
-      flex-wrap: nowrap; margin: 1em 0;
+      margin: 1em 0;
     }
     .video-block {
       flex: 1 1 45%; display: flex;
@@ -57,7 +55,7 @@
       margin-top: .3em; font-weight: bold; color: #333;
     }
     #talkBtn {
-      padding: .8em 2em; font-size: 1.1em; margin: 1em 0; margin-top: -30px;
+      padding: .8em 2em; font-size: 1.1em; margin: 1em 0;
       border: none; border-radius: .7em;
       background: #2196f3; color: white;
       cursor: pointer; user-select: none;
@@ -66,35 +64,20 @@
       transform: scale(.96); background: red;
     }
     .midi-section {
-      margin: 1.5em 0; text-align: center;
-    }
-    .midi-section h3 {
-      margin-bottom: .5em; font-size: 1em;
-    }
-    .midi-controls {
-      display: flex; justify-content: center;
-      align-items: center; gap: 1em; margin-bottom: .5em;
-    }
-    .midi-controls select {
-      padding: .4em; font-size: 1em; width: auto;
-    }
-    #midiStatus, #midiSendStatus {
-      margin-top: .5em; color: #555;
+      margin: 1.5em 0;
     }
     #keyboard {
       width: 100%; max-width: 700px;
-      height: 150px; margin: 1.5em auto; margin-bottom: -10px;
-    }
-    .midi-section select {
-      padding: .4em;
-      font-size: 0.8em;
+      height: 150px; margin: 1em auto;
     }
   </style>
 </head>
 <body>
   <div class="marco">
     <h1>DreamEcho</h1>
-    <p><a href="https://www.youtube.com/@rafgim" target="_blank" rel="noopener">© By Rafael Gimeno</a></p>
+    <p><a href="https://www.youtube.com/@rafgim" target="_blank" rel="noopener">
+      © By Rafael Gimeno
+    </a></p>
 
     <div id="pinSection" class="pin-section">
       <input type="text" id="pinInput" placeholder="Introduce tu PIN de la sala">
@@ -117,17 +100,8 @@
       <button id="talkBtn">📢 Mantén pulsado para hablar</button>
 
       <div class="midi-section">
-        <h3>MIDI recibido (del otro participante):</h3>
-        <div class="midi-controls">
-          <select id="midiOutSelect" multiple></select>
-        </div>
-        <div id="midiStatus"></div>
-      </div>
-
-      <div class="midi-section">
-        <h3>MIDI a enviar (tu piano):</h3>
-        <div id="midiInSelectCont"></div>
-        <div id="midiSendStatus"></div>
+        <h3>MIDI recibido (del otro participante)</h3>
+        <p id="midiStatus">Reenviando al piano para LED...</p>
       </div>
 
       <p id="recuentoOyentes">Oyentes conectados: --</p>
@@ -141,12 +115,10 @@
   </script>
 
   <script>
-    let pin, ws, pc, piano;
+    let pin, ws, pc, piano, synth;
     let realAudioTrack, silentAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
-    let midiAccess, midiInputs = [], midiOutputs = [];
-    let selectedMidiOuts = [], midiInDevice, midiChannel;
-    let synth;
+    let midiAccess, midiOutputs = [], midiChannel;
 
     const pinSection    = document.getElementById('pinSection');
     const pinInput      = document.getElementById('pinInput');
@@ -157,11 +129,8 @@
     const localVideo    = document.getElementById('localVideo');
     const remoteVideo   = document.getElementById('remoteVideo');
     const talkBtn       = document.getElementById('talkBtn');
-    const midiOutSelect = document.getElementById('midiOutSelect');
-    const midiStatus    = document.getElementById('midiStatus');
-    const midiInSelectCont = document.getElementById('midiInSelectCont');
-    const midiSendStatus   = document.getElementById('midiSendStatus');
     const keyboardEl    = document.getElementById('keyboard');
+    const midiStatus    = document.getElementById('midiStatus');
 
     pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
@@ -191,13 +160,17 @@
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
         if (msg.pin !== pin) return;
-        if (msg.type === 'stats') {
-          oyentesEl.textContent = `Oyentes conectados: ${msg.clients}`;
-        } else if (msg.type === 'signal') {
-          await handleSignal(msg);
-        } else if (msg.type === 'talk') {
-          remoteSpeaking = msg.speaking;
-          updateMicState();
+        switch (msg.type) {
+          case 'stats':
+            oyentesEl.textContent = `Oyentes conectados: ${msg.clients}`;
+            break;
+          case 'signal':
+            await handleSignal(msg);
+            break;
+          case 'talk':
+            remoteSpeaking = msg.speaking;
+            updateMicState();
+            break;
         }
       };
       ws.onerror = () => statusEl.textContent = 'Error en la conexión.';
@@ -215,7 +188,7 @@
         await pc.setRemoteDescription(new RTCSessionDescription(msg.offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        sendMessage({ type:'signal', answer: pc.localDescription });
+        sendMessage({ type: 'signal', answer: pc.localDescription });
       } else if (msg.answer && pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.answer));
       } else if (msg.candidate && pc) {
@@ -227,7 +200,7 @@
       await setupOfferer();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      sendMessage({ type:'signal', offer: pc.localDescription });
+      sendMessage({ type: 'signal', offer: pc.localDescription });
     }
 
     async function setupOfferer() {
@@ -246,17 +219,10 @@
 
     function createPeerConnection() {
       const connection = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          {
-            urls: 'turn:TU_TURN_SERVER:3478',
-            username: 'TU_USUARIO',
-            credential: 'TU_CONTRASEÑA'
-          }
-        ]
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
       connection.onicecandidate = ({ candidate }) => {
-        if (candidate) sendMessage({ type:'signal', candidate });
+        if (candidate) sendMessage({ type: 'signal', candidate });
       };
       connection.ontrack = ev => {
         remoteVideo.srcObject = ev.streams[0];
@@ -271,18 +237,18 @@
     }
 
     function createSilentAudioTrack() {
-      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();
       osc.frequency.value = 0;
       const dst = ctx.createMediaStreamDestination();
       osc.connect(dst);
       osc.start();
-      setTimeout(()=>osc.stop(),100);
+      setTimeout(() => osc.stop(), 100);
       return dst.stream.getAudioTracks()[0];
     }
 
     async function initLocalVideo() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       realAudioTrack = stream.getAudioTracks()[0];
       silentAudioTrack = createSilentAudioTrack();
       localVideo.srcObject = stream;
@@ -295,106 +261,52 @@
 
     function updateMicState() {
       if (!audioSender) return;
-      const track = (pressingTalk && !remoteSpeaking)
-                    ? realAudioTrack
-                    : silentAudioTrack;
+      const track = (pressingTalk && !remoteSpeaking) ? realAudioTrack : silentAudioTrack;
       if (audioSender.track !== track) audioSender.replaceTrack(track);
     }
 
-    ['mousedown','touchstart'].forEach(e => talkBtn.addEventListener(e, ()=> {
+    talkBtn.addEventListener('mousedown', () => {
       pressingTalk = true;
-      sendMessage({ type:'talk', speaking:true });
+      sendMessage({ type: 'talk', speaking: true });
       talkBtn.style.background = 'red';
       updateMicState();
-    }));
-    ['mouseup','mouseleave','touchend','touchcancel'].forEach(e => talkBtn.addEventListener(e, ()=> {
+    });
+    talkBtn.addEventListener('mouseup', () => {
       pressingTalk = false;
-      sendMessage({ type:'talk', speaking:false });
+      sendMessage({ type: 'talk', speaking: false });
       talkBtn.style.background = '';
       updateMicState();
-    }));
+    });
+    talkBtn.addEventListener('mouseleave', () => {
+      pressingTalk = false;
+      sendMessage({ type: 'talk', speaking: false });
+      talkBtn.style.background = '';
+      updateMicState();
+    });
 
     async function setupMIDI() {
-      midiAccess  = await navigator.requestMIDIAccess();
-      midiInputs  = Array.from(midiAccess.inputs.values());
+      midiAccess = await navigator.requestMIDIAccess();
       midiOutputs = Array.from(midiAccess.outputs.values());
-
-      // Salidas MIDI: llenamos selector y guardamos la lista
-      midiOutSelect.innerHTML = '';
-      if (midiOutputs.length) {
-        midiOutputs.forEach((o,i) => {
-          const opt = document.createElement('option');
-          opt.value = i;
-          opt.textContent = o.name;
-          midiOutSelect.appendChild(opt);
-        });
-        midiOutSelect.size = Math.min(midiOutputs.length, 4);
-        midiOutSelect.onchange = () => {
-          selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
-                                 .map(o => midiOutputs[+o.value]);
-          midiStatus.textContent = selectedMidiOuts.length
-            ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
-            : '';
-        };
-        // Si sólo hay una salida, selección automática
-        if (midiOutputs.length === 1) {
-          midiOutSelect.options[0].selected = true;
-          midiOutSelect.onchange();
-        }
-      } else {
-        midiOutSelect.innerHTML = '<option>(No hay salidas MIDI)</option>';
-        midiOutSelect.size = 1;
-      }
-
-      // Entradas MIDI (tu piano)
-      midiInSelectCont.innerHTML = '';
-      if (midiInputs.length) {
-        const selIn = document.createElement('select');
-        selIn.innerHTML = '<option value="">-- Elige entrada MIDI --</option>';
-        midiInputs.forEach((i,k) => {
-          selIn.innerHTML += `<option value="${k}">${i.name}</option>`;
-        });
-        selIn.onchange = () => {
-          if (midiInDevice) midiInDevice.onmidimessage = null;
-          midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
-          if (midiInDevice) {
-            midiInDevice.onmidimessage = ({ data }) => {
-              // enviamos tu propia señal MIDI al otro
-              if (midiChannel && midiChannel.readyState === 'open') {
-                midiChannel.send(JSON.stringify({ data: Array.from(data) }));
-              }
-            };
-            midiSendStatus.textContent = `Enviando MIDI desde: ${midiInDevice.name}`;
-          } else {
-            midiSendStatus.textContent = '';
-          }
-        };
-        midiInSelectCont.appendChild(selIn);
-        if (midiInputs.length === 1) {
-          selIn.value = '0';
-          selIn.onchange();
-        }
-      } else {
-        midiInSelectCont.textContent = '(No hay entradas MIDI físicas conectadas)';
-      }
+      // Si hay puertos USB-MIDI conectados (piano), estarán en midiOutputs
+      // No hace falta selector: reenviamos todo al piano
     }
 
     function handleMidiMessage(msg) {
-      const [status, note, vel] = msg.data;
+      const [status, note, velocity] = msg.data;
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // 1) Reproducir localmente
+      // 1) Sintetizar sonido local
       synth.triggerAttackRelease(noteName, '8n');
 
-      // 2) Iluminar teclado
-      if (cmd === 0x90 && vel > 0) {
+      // 2) Iluminar teclado en pantalla
+      if (cmd === 0x90 && velocity > 0) {
         piano.fillKey(noteName);
-      } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
+      } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
         piano.clearKey(noteName);
       }
 
-      // 3) Reenviar a **todos** los puertos MIDI de salida locales
+      // 3) Reenviar a TODOS los puertos MIDI de salida locales (tu piano USB)
       midiOutputs.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
