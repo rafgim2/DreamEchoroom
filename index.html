@@ -78,9 +78,14 @@
     .midi-controls select {
       padding: .4em; font-size: 1em;
     }
-    .midi-controls select[multiple] {
-      height: auto;
-      min-height: 4em;
+    /* limitamos la altura del select múltiple y habilitamos scroll */
+    #midiOutSelect {
+      max-height: 120px;
+      overflow-y: auto;
+      width: 60%;
+    }
+    #midiOutSelect[multiple] {
+      display: block;
     }
     #midiStatus, #midiSendStatus {
       margin-top: .5em; color: #555;
