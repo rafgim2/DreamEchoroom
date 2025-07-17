@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>DreamEcho</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Tone.js para sonorizar notas MIDI -->
+  <!-- Necesario para convertir número MIDI a nombre de nota -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js"></script>
   <style>
     body {
@@ -77,6 +77,7 @@
     }
     .midi-controls select {
       padding: .4em; font-size: 1em;
+      /* ancho flexible, se fija en JS */
       width: auto;
     }
     #midiStatus, #midiSendStatus {
@@ -146,7 +147,7 @@
   </script>
 
   <script>
-    let pin, ws, pc, piano, synth;
+    let pin, ws, pc, piano;
     let realAudioTrack, silentAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
@@ -167,13 +168,11 @@
     const midiSendStatus   = document.getElementById('midiSendStatus');
     const keyboardEl    = document.getElementById('keyboard');
 
-    pinBtn.addEventListener('click', async () => {
+    pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
       if (!pin) return;
       pinSection.style.display = 'none';
       mainContent.style.display = 'block';
-
-      // Inicializa teclado y sintetizador
       piano = new PianoKeys.Keyboard(keyboardEl, {
         width: keyboardEl.clientWidth,
         height: keyboardEl.clientHeight,
@@ -181,9 +180,6 @@
         accidentalKeyColour: '#000',
         activeColour: '#4a4'
       });
-      await Tone.start();
-      synth = new Tone.PolySynth(Tone.Synth).toDestination();
-
       connectWebSocket();
     });
 
@@ -346,6 +342,7 @@
             ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
             : '';
         };
+        // Si solo hay una salida, sélectionalo automáticamente
         if (midiOutputs.length === 1) {
           midiOutSelect.options[0].selected = true;
           midiOutSelect.onchange();
@@ -355,7 +352,7 @@
         midiOutSelect.size = 1;
       }
 
-      // Entradas MIDI (para tu piano)
+      // Entradas MIDI (única selección)
       midiInSelectCont.innerHTML = '';
       if (midiInputs.length) {
         const selIn = document.createElement('select');
@@ -378,6 +375,7 @@
           }
         };
         midiInSelectCont.appendChild(selIn);
+        // Si solo hay una entrada, selección automática
         if (midiInputs.length === 1) {
           selIn.value = '0';
           selIn.onchange();
@@ -392,16 +390,14 @@
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // Iluminar teclado
+      // iluminar teclado
       if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
-        synth.triggerAttack(noteName);
       } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
-        synth.triggerRelease(noteName);
       }
 
-      // Reenviar a dispositivos MIDI físicos seleccionados
+      // reenviar a salidas seleccionadas
       selectedMidiOuts.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
