@@ -324,7 +324,7 @@
       midiInputs  = Array.from(midiAccess.inputs.values());
       midiOutputs = Array.from(midiAccess.outputs.values());
 
-      // Salidas MIDI (múltiple)
+      // === Salidas MIDI (para recibir MIDI remoto) ===
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
         midiOutputs.forEach((o,i) => {
@@ -351,7 +351,7 @@
         midiOutSelect.size = 1;
       }
 
-      // Entradas MIDI (única selección)
+      // === Entradas MIDI (tu piano) ===
       midiInSelectCont.innerHTML = '';
       if (midiInputs.length) {
         const selIn = document.createElement('select');
@@ -364,6 +364,7 @@
           midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
           if (midiInDevice) {
             midiInDevice.onmidimessage = ({ data }) => {
+              // Enviar sólo al otro participante, no reenvíes esto de vuelta a tu propio dispositivo
               if (midiChannel && midiChannel.readyState === 'open') {
                 midiChannel.send(JSON.stringify({ data: Array.from(data) }));
               }
@@ -374,7 +375,6 @@
           }
         };
         midiInSelectCont.appendChild(selIn);
-        // Si solo hay una entrada, selección automática
         if (midiInputs.length === 1) {
           selIn.value = '0';
           selIn.onchange();
@@ -389,20 +389,16 @@
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // Iluminar teclado
+      // 1) Iluminar teclado:
       if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
       } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
       }
 
-      // Enviar a las salidas MIDI seleccionadas por el usuario
+      // 2) Enviar a tu dispositivo MIDI local seleccionado:
       selectedMidiOuts.forEach(dev => {
-        dev.send(new Uint8Array(msg.data));
-      });
-
-      // Además, enviar también a todas las salidas MIDI locales (sin reenviar al otro participante)
-      midiOutputs.forEach(dev => {
+        // Esta llamada hará sonar el dispositivo hardware sin reenviarlo al otro
         dev.send(new Uint8Array(msg.data));
       });
     }
