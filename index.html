@@ -77,15 +77,8 @@
     }
     .midi-controls select {
       padding: .4em; font-size: 1em;
-    }
-    /* limitamos la altura del select múltiple y habilitamos scroll */
-    #midiOutSelect {
-      max-height: 120px;
-      overflow-y: auto;
-    }
-    /* si hay varias opciones, ancho al 60%, si no, en JS ajustamos */
-    #midiOutSelect[multiple] {
-      display: inline-block;
+      /* ancho flexible, se fija en JS */
+      width: auto;
     }
     #midiStatus, #midiSendStatus {
       margin-top: .5em; color: #555;
@@ -337,12 +330,8 @@
           opt.textContent = o.name;
           midiOutSelect.appendChild(opt);
         });
-        // ajustar ancho según número de opciones
-        if (midiOutputs.length === 1) {
-          midiOutSelect.style.width = 'auto';
-        } else {
-          midiOutSelect.style.width = '60%';
-        }
+        // ajustar tamaño vertical con size
+        midiOutSelect.size = Math.min(midiOutputs.length, 4);
         midiOutSelect.onchange = () => {
           selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
                                 .map(o => midiOutputs[+o.value]);
@@ -352,7 +341,7 @@
         };
       } else {
         midiOutSelect.innerHTML = '<option>(No hay salidas MIDI)</option>';
-        midiOutSelect.style.width = 'auto';
+        midiOutSelect.size = 1;
       }
 
       // Entradas MIDI
