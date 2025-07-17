@@ -25,7 +25,7 @@
       border-radius: 1em;
       box-sizing: border-box;
     }
-    h1 { font-size: 2.5em; margin: .2em 0; }
+    h1 { font-size: 2.5em; margin: 0.2em 0; }
     .pin-section { margin-bottom: 1em; }
     .pin-section input {
       padding: .6em; font-size: 1em; width: 60%; margin-right: .5em;
@@ -76,6 +76,11 @@
     .midi-controls select {
       padding: .4em; font-size: 1em;
     }
+    /* tamaño del select múltiple */
+    .midi-controls select[multiple] {
+      height: auto;
+      min-height: 4em;
+    }
     #midiStatus, #midiSendStatus {
       margin-top: .5em; color: #555;
     }
@@ -115,7 +120,9 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple></select>
+          <select id="midiOutSelect" multiple>
+            <!-- Opciones rellenadas dinámicamente -->
+          </select>
         </div>
         <div id="midiStatus"></div>
       </div>
@@ -140,7 +147,8 @@
     let pin, ws, pc, piano;
     let realAudioTrack, silentAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
-    let midiAccess, midiInputs = [], midiOutputs = [], selectedMidiOuts = [], midiInDevice, midiChannel;
+    let midiAccess, midiInputs = [], midiOutputs = [];
+    let selectedMidiOuts = [], midiInDevice, midiChannel;
 
     const pinSection        = document.getElementById('pinSection');
     const pinInput          = document.getElementById('pinInput');
@@ -260,6 +268,7 @@
         midiChannel = ev.channel;
         midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       };
+      // para enviar MIDI si somos el iniciador
       midiChannel = connection.createDataChannel('midi');
       midiChannel.onmessage = ({ data }) => handleMidiMessage(JSON.parse(data));
       return connection;
@@ -278,7 +287,7 @@
 
     async function initLocalVideo() {
       const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
-      realAudioTrack   = stream.getAudioTracks()[0];
+      realAudioTrack = stream.getAudioTracks()[0];
       silentAudioTrack = createSilentAudioTrack();
       localVideo.srcObject = stream;
       for (const track of stream.getTracks()) {
@@ -314,7 +323,7 @@
       midiInputs  = Array.from(midiAccess.inputs.values());
       midiOutputs = Array.from(midiAccess.outputs.values());
 
-      // Salidas MIDI (selección múltiple)
+      // Salidas MIDI (múltiple)
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
         midiOutputs.forEach((o,i) => {
@@ -324,14 +333,14 @@
           midiOutSelect.appendChild(opt);
         });
         midiOutSelect.onchange = () => {
-          const indices = Array.from(midiOutSelect.selectedOptions).map(opt => +opt.value);
-          selectedMidiOuts = indices.map(i => midiOutputs[i]);
+          selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
+                                .map(o => midiOutputs[+o.value]);
           midiStatus.textContent = selectedMidiOuts.length
-            ? `Enviando MIDI a ${selectedMidiOuts.map(d=>d.name).join(', ')}`
+            ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
             : '';
         };
       } else {
-        midiOutSelect.innerHTML = '<option>(No hay salidas MIDI conectadas)</option>';
+        midiOutSelect.innerHTML = '<option>(No hay salidas MIDI)</option>';
       }
 
       // Entradas MIDI
@@ -339,9 +348,9 @@
       if (midiInputs.length) {
         const selIn = document.createElement('select');
         selIn.innerHTML = '<option value="">-- Elige entrada MIDI --</option>';
-        midiInputs.forEach((i,k) =>
-          selIn.innerHTML += `<option value="${k}">${i.name}</option>`
-        );
+        midiInputs.forEach((i,k) => {
+          selIn.innerHTML += `<option value="${k}">${i.name}</option>`;
+        });
         selIn.onchange = () => {
           if (midiInDevice) midiInDevice.onmidimessage = null;
           midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
@@ -363,8 +372,10 @@
     }
 
     function handleMidiMessage(msg) {
-      const bytes = new Uint8Array(msg.data);
-      selectedMidiOuts.forEach(dev => dev.send(bytes));
+      // reenviar a todos los dispositivos seleccionados
+      selectedMidiOuts.forEach(dev => {
+        dev.send(new Uint8Array(msg.data));
+      });
     }
   </script>
 </body>
