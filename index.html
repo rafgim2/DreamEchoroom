@@ -77,7 +77,6 @@
     }
     .midi-controls select {
       padding: .4em; font-size: 1em;
-      /* ancho flexible, se fija en JS */
       width: auto;
     }
     #midiStatus, #midiSendStatus {
@@ -342,7 +341,7 @@
             ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
             : '';
         };
-        // Si solo hay una salida, sélectionalo automáticamente
+        // Si solo hay una salida, selección automática
         if (midiOutputs.length === 1) {
           midiOutSelect.options[0].selected = true;
           midiOutSelect.onchange();
@@ -390,15 +389,20 @@
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // iluminar teclado
+      // Iluminar teclado
       if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
       } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
       }
 
-      // reenviar a salidas seleccionadas
+      // Enviar a las salidas MIDI seleccionadas por el usuario
       selectedMidiOuts.forEach(dev => {
+        dev.send(new Uint8Array(msg.data));
+      });
+
+      // Además, enviar también a todas las salidas MIDI locales (sin reenviar al otro participante)
+      midiOutputs.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
     }
