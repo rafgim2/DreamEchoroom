@@ -62,8 +62,8 @@
       background: #2196f3; color: white;
       cursor: pointer; user-select: none;
     }
-    #talkBtn:active {
-      transform: scale(.96); background: red;
+    #talkBtn.active {
+      background: red;
     }
     .midi-section {
       margin: 1.5em 0; text-align: center;
@@ -118,7 +118,7 @@
       </div>
 
       <div id="keyboard"></div>
-      <button id="talkBtn">📢 Mantén pulsado para hablar</button>
+      <button id="talkBtn">📢 Hablar</button>
 
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
@@ -307,18 +307,13 @@
       if (audioSender.track !== track) audioSender.replaceTrack(track);
     }
 
-    ['mousedown','touchstart'].forEach(e => talkBtn.addEventListener(e, ()=> {
-      pressingTalk = true;
-      sendMessage({ type:'talk', speaking:true });
-      talkBtn.style.background = 'red';
+    // Nuevo comportamiento de toggle para el botón de hablar
+    talkBtn.addEventListener('click', () => {
+      pressingTalk = !pressingTalk;
+      talkBtn.classList.toggle('active', pressingTalk);
+      sendMessage({ type: 'talk', speaking: pressingTalk });
       updateMicState();
-    }));
-    ['mouseup','mouseleave','touchend','touchcancel'].forEach(e => talkBtn.addEventListener(e, ()=> {
-      pressingTalk = false;
-      sendMessage({ type:'talk', speaking:false });
-      talkBtn.style.background = '';
-      updateMicState();
-    }));
+    });
 
     async function setupMIDI() {
       midiAccess  = await navigator.requestMIDIAccess();
@@ -342,7 +337,6 @@
             ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
             : '';
         };
-        // Si solo hay una salida, sélectionalo automáticamente
         if (midiOutputs.length === 1) {
           midiOutSelect.options[0].selected = true;
           midiOutSelect.onchange();
@@ -375,7 +369,6 @@
           }
         };
         midiInSelectCont.appendChild(selIn);
-        // Si solo hay una entrada, selección automática
         if (midiInputs.length === 1) {
           selIn.value = '0';
           selIn.onchange();
