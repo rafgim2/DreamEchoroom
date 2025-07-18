@@ -149,21 +149,22 @@
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
+    let statsInterval;
 
-    const pinSection    = document.getElementById('pinSection');
-    const pinInput      = document.getElementById('pinInput');
-    const pinBtn        = document.getElementById('pinBtn');
-    const mainContent   = document.getElementById('mainContent');
-    const statusEl      = document.getElementById('status');
-    const oyentesEl     = document.getElementById('recuentoOyentes');
-    const localVideo    = document.getElementById('localVideo');
-    const remoteVideo   = document.getElementById('remoteVideo');
-    const talkBtn       = document.getElementById('talkBtn');
-    const midiOutSelect = document.getElementById('midiOutSelect');
-    const midiStatus    = document.getElementById('midiStatus');
-    const midiInSelectCont = document.getElementById('midiInSelectCont');
-    const midiSendStatus   = document.getElementById('midiSendStatus');
-    const keyboardEl    = document.getElementById('keyboard');
+    const pinSection        = document.getElementById('pinSection');
+    const pinInput          = document.getElementById('pinInput');
+    const pinBtn            = document.getElementById('pinBtn');
+    const mainContent       = document.getElementById('mainContent');
+    const statusEl          = document.getElementById('status');
+    const oyentesEl         = document.getElementById('recuentoOyentes');
+    const localVideo        = document.getElementById('localVideo');
+    const remoteVideo       = document.getElementById('remoteVideo');
+    const talkBtn           = document.getElementById('talkBtn');
+    const midiOutSelect     = document.getElementById('midiOutSelect');
+    const midiStatus        = document.getElementById('midiStatus');
+    const midiInSelectCont  = document.getElementById('midiInSelectCont');
+    const midiSendStatus    = document.getElementById('midiSendStatus');
+    const keyboardEl        = document.getElementById('keyboard');
 
     pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
@@ -186,6 +187,10 @@
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
+
+        // Pedimos estadísticas YA y cada 3 segundos:
+        requestStats();
+        statsInterval = setInterval(requestStats, 3000);
       };
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
@@ -199,12 +204,18 @@
             break;
           case 'talk':
             remoteSpeaking = msg.speaking;
-            // solo para UI remota
             break;
         }
       };
       ws.onerror = () => statusEl.textContent = 'Error en la conexión.';
-      ws.onclose = () => statusEl.textContent = 'Conexión cerrada.';
+      ws.onclose = () => {
+        statusEl.textContent = 'Conexión cerrada.';
+        clearInterval(statsInterval);
+      };
+    }
+
+    function requestStats() {
+      sendMessage({ type: 'stats' });
     }
 
     function sendMessage(obj) {
@@ -280,7 +291,6 @@
       localVideo.srcObject = stream;
       audioSender = pc.addTrack(realAudioTrack, stream);
       pc.addTrack(videoTrack, stream);
-      // Arrancamos con el mic desactivado
       realAudioTrack.enabled = false;
     }
 
@@ -360,14 +370,12 @@
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
 
-      // iluminar teclado
       if (cmd === 0x90 && vel > 0) {
         piano.fillKey(noteName);
       } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
         piano.clearKey(noteName);
       }
 
-      // reenviar a salidas seleccionadas
       selectedMidiOuts.forEach(dev => {
         dev.send(new Uint8Array(msg.data));
       });
