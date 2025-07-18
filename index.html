@@ -187,9 +187,9 @@
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
-        // Pedimos la estadística YA y cada 3 s:
-        requestStats();
-        statsInterval = setInterval(requestStats, 3000);
+        // Pedimos stats YA y luego cada 3 s
+        sendPing();
+        statsInterval = setInterval(sendPing, 3000);
       };
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
@@ -209,9 +209,9 @@
       };
     }
 
-    function requestStats() {
-      // Enviamos tipo 'stats' para forzar al servidor a responder con { type:'stats', clients, pin }
-      ws.send(JSON.stringify({ type: 'stats', pin }));
+    function sendPing() {
+      // El servidor escucha 'ping' para reenviar stats
+      ws.send(JSON.stringify({ type: 'ping', pin }));
     }
 
     function sendMessage(obj) {
