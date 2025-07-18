@@ -38,7 +38,7 @@
       background: #2196f3; color: #fff;
     }
     #mainContent { display: none; }
-    #recuentoOyentes, #status {
+    #recuentoUsuarios, #status {
       font-size: 1.1em; color: #555; margin: .5em 0;
     }
     .video-container {
@@ -133,7 +133,7 @@
         <div id="midiSendStatus"></div>
       </div>
 
-      <p id="recuentoOyentes">Oyentes conectados: --</p>
+      <p id="recuentoUsuarios">Usuarios conectados: --</p>
       <p id="status">Esperando conexión…</p>
     </div>
   </div>
@@ -151,20 +151,20 @@
     let selectedMidiOuts = [], midiInDevice, midiChannel;
     let statsInterval;
 
-    const pinSection        = document.getElementById('pinSection');
-    const pinInput          = document.getElementById('pinInput');
-    const pinBtn            = document.getElementById('pinBtn');
-    const mainContent       = document.getElementById('mainContent');
-    const statusEl          = document.getElementById('status');
-    const oyentesEl         = document.getElementById('recuentoOyentes');
-    const localVideo        = document.getElementById('localVideo');
-    const remoteVideo       = document.getElementById('remoteVideo');
-    const talkBtn           = document.getElementById('talkBtn');
-    const midiOutSelect     = document.getElementById('midiOutSelect');
-    const midiStatus        = document.getElementById('midiStatus');
-    const midiInSelectCont  = document.getElementById('midiInSelectCont');
-    const midiSendStatus    = document.getElementById('midiSendStatus');
-    const keyboardEl        = document.getElementById('keyboard');
+    const pinSection       = document.getElementById('pinSection');
+    const pinInput         = document.getElementById('pinInput');
+    const pinBtn           = document.getElementById('pinBtn');
+    const mainContent      = document.getElementById('mainContent');
+    const statusEl         = document.getElementById('status');
+    const usuariosEl       = document.getElementById('recuentoUsuarios');
+    const localVideo       = document.getElementById('localVideo');
+    const remoteVideo      = document.getElementById('remoteVideo');
+    const talkBtn          = document.getElementById('talkBtn');
+    const midiOutSelect    = document.getElementById('midiOutSelect');
+    const midiStatus       = document.getElementById('midiStatus');
+    const midiInSelectCont = document.getElementById('midiInSelectCont');
+    const midiSendStatus   = document.getElementById('midiSendStatus');
+    const keyboardEl       = document.getElementById('keyboard');
 
     pinBtn.addEventListener('click', () => {
       pin = pinInput.value.trim();
@@ -187,8 +187,7 @@
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
-
-        // Pedimos estadísticas YA y cada 3 segundos:
+        // Pedimos usuarios YA y cada 3 s:
         requestStats();
         statsInterval = setInterval(requestStats, 3000);
       };
@@ -197,7 +196,7 @@
         if (msg.pin !== pin) return;
         switch (msg.type) {
           case 'stats':
-            oyentesEl.textContent = `Oyentes conectados: ${msg.clients}`;
+            usuariosEl.textContent = `Usuarios conectados: ${msg.clients}`;
             break;
           case 'signal':
             await handleSignal(msg);
@@ -215,7 +214,7 @@
     }
 
     function requestStats() {
-      sendMessage({ type: 'stats' });
+      sendMessage({ type: 'getStats' });
     }
 
     function sendMessage(obj) {
