@@ -77,6 +77,7 @@
     }
     .midi-controls select {
       padding: .4em; font-size: 1em;
+      /* ancho flexible, se fija en JS */
       width: auto;
     }
     #midiStatus, #midiSendStatus {
@@ -122,7 +123,9 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple></select>
+          <select id="midiOutSelect" multiple>
+            <!-- opciones dinámicas -->
+          </select>
         </div>
         <div id="midiStatus"></div>
       </div>
@@ -145,7 +148,7 @@
 
   <script>
     let pin, ws, pc, piano;
-    let realAudioTrack, audioSender;
+    let realAudioTrack, silentAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
@@ -199,7 +202,7 @@
             break;
           case 'talk':
             remoteSpeaking = msg.speaking;
-            // solo para UI remota
+            updateMicState();
             break;
         }
       };
@@ -273,23 +276,44 @@
       return connection;
     }
 
-    async function initLocalVideo() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      realAudioTrack = stream.getAudioTracks()[0];
-      const videoTrack = stream.getVideoTracks()[0];
-      localVideo.srcObject = stream;
-      audioSender = pc.addTrack(realAudioTrack, stream);
-      pc.addTrack(videoTrack, stream);
-      // Arrancamos con el mic desactivado
-      realAudioTrack.enabled = false;
+    function createSilentAudioTrack() {
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 0;
+      const dst = ctx.createMediaStreamDestination();
+      osc.connect(dst);
+      osc.start();
+      setTimeout(()=>osc.stop(),100);
+      return dst.stream.getAudioTracks()[0];
     }
 
+    async function initLocalVideo() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
+      realAudioTrack = stream.getAudioTracks()[0];
+      silentAudioTrack = createSilentAudioTrack();
+      localVideo.srcObject = stream;
+      for (const track of stream.getTracks()) {
+        const sender = pc.addTrack(track, stream);
+        if (track.kind === 'audio') audioSender = sender;
+      }
+      if (audioSender) audioSender.replaceTrack(silentAudioTrack);
+    }
+
+    function updateMicState() {
+      if (!audioSender) return;
+      const track = (pressingTalk && !remoteSpeaking)
+                    ? realAudioTrack
+                    : silentAudioTrack;
+      if (audioSender.track !== track) audioSender.replaceTrack(track);
+    }
+
+    // Toggle para el botón de hablar: texto y color
     talkBtn.addEventListener('click', () => {
       pressingTalk = !pressingTalk;
       talkBtn.classList.toggle('active', pressingTalk);
       talkBtn.textContent = pressingTalk ? '🔇 Silencio' : '🔊 Hablar';
       sendMessage({ type: 'talk', speaking: pressingTalk });
-      if (realAudioTrack) realAudioTrack.enabled = pressingTalk;
+      updateMicState();
     });
 
     async function setupMIDI() {
