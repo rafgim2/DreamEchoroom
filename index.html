@@ -145,7 +145,7 @@
 
   <script>
     let pin, ws, pc, piano;
-    let realAudioTrack, audioSender;
+    let realAudioTrack;
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
@@ -187,23 +187,19 @@
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
-        // Pedimos usuarios YA y cada 3 s:
+        // Pedimos la estadística YA y cada 3 s:
         requestStats();
         statsInterval = setInterval(requestStats, 3000);
       };
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
         if (msg.pin !== pin) return;
-        switch (msg.type) {
-          case 'stats':
-            usuariosEl.textContent = `Usuarios conectados: ${msg.clients}`;
-            break;
-          case 'signal':
-            await handleSignal(msg);
-            break;
-          case 'talk':
-            remoteSpeaking = msg.speaking;
-            break;
+        if (msg.type === 'stats') {
+          usuariosEl.textContent = `Usuarios conectados: ${msg.clients}`;
+        } else if (msg.type === 'signal') {
+          await handleSignal(msg);
+        } else if (msg.type === 'talk') {
+          remoteSpeaking = msg.speaking;
         }
       };
       ws.onerror = () => statusEl.textContent = 'Error en la conexión.';
@@ -214,7 +210,8 @@
     }
 
     function requestStats() {
-      sendMessage({ type: 'getStats' });
+      // Enviamos tipo 'stats' para forzar al servidor a responder con { type:'stats', clients, pin }
+      ws.send(JSON.stringify({ type: 'stats', pin }));
     }
 
     function sendMessage(obj) {
@@ -288,7 +285,7 @@
       realAudioTrack = stream.getAudioTracks()[0];
       const videoTrack = stream.getVideoTracks()[0];
       localVideo.srcObject = stream;
-      audioSender = pc.addTrack(realAudioTrack, stream);
+      pc.addTrack(realAudioTrack, stream);
       pc.addTrack(videoTrack, stream);
       realAudioTrack.enabled = false;
     }
