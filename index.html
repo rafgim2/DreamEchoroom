@@ -107,11 +107,11 @@
     <div id="mainContent">
       <div class="video-container">
         <div class="video-block">
-          <video id="localVideo" autoplay muted playsinline></video>
+          <video id="localVideo" controls autoplay muted playsinline></video>
           <p class="video-label">Tú</p>
         </div>
         <div class="video-block">
-          <video id="remoteVideo" autoplay playsinline></video>
+          <video id="remoteVideo" controls autoplay playsinline></video>
           <p class="video-label">Otro</p>
         </div>
       </div>
@@ -185,11 +185,9 @@
     function connectWebSocket() {
       ws = new WebSocket('wss://dreamecho.onrender.com');
       ws.onopen = () => {
-        // Estado inicial hasta recibir estadísticas
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
-        // Pedimos stats YA y luego cada 3 s
         sendPing();
         statsInterval = setInterval(sendPing, 3000);
       };
@@ -311,7 +309,6 @@
       midiInputs  = Array.from(midiAccess.inputs.values());
       midiOutputs = Array.from(midiAccess.outputs.values());
 
-      // Salidas MIDI (múltiple)
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
         midiOutputs.forEach((o,i) => {
@@ -337,7 +334,6 @@
         midiOutSelect.size = 1;
       }
 
-      // Entradas MIDI (única selección)
       midiInSelectCont.innerHTML = '';
       if (midiInputs.length) {
         const selIn = document.createElement('select');
