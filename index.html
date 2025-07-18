@@ -171,6 +171,7 @@
       if (!pin) return;
       pinSection.style.display = 'none';
       mainContent.style.display = 'block';
+      statusEl.textContent = 'Conectando…';
       piano = new PianoKeys.Keyboard(keyboardEl, {
         width: keyboardEl.clientWidth,
         height: keyboardEl.clientHeight,
@@ -184,6 +185,7 @@
     function connectWebSocket() {
       ws = new WebSocket('wss://dreamecho.onrender.com');
       ws.onopen = () => {
+        // Estado inicial hasta recibir estadísticas
         statusEl.textContent = 'Conectado; iniciando llamada…';
         setupMIDI();
         startWebRTC();
@@ -194,12 +196,13 @@
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
 
-        // 1) Estadísticas: actualizar siempre
         if (msg.type === 'stats') {
           usuariosEl.textContent = `Usuarios conectados: ${msg.clients}`;
+          if (msg.clients === 2) {
+            statusEl.textContent = 'Conectado: conexión establecida.';
+          }
           return;
         }
-        // 2) Para el resto, filtrar por pin
         if (msg.pin !== pin) return;
 
         if (msg.type === 'signal') {
