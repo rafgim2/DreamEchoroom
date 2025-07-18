@@ -199,7 +199,7 @@
             break;
           case 'talk':
             remoteSpeaking = msg.speaking;
-            // podrías usar remoteSpeaking para UI, pero no para tu mic
+            // solo para UI remota
             break;
         }
       };
@@ -274,11 +274,13 @@
     }
 
     async function initLocalVideo() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       realAudioTrack = stream.getAudioTracks()[0];
+      const videoTrack = stream.getVideoTracks()[0];
       localVideo.srcObject = stream;
       audioSender = pc.addTrack(realAudioTrack, stream);
-      // Por defecto muted:
+      pc.addTrack(videoTrack, stream);
+      // Arrancamos con el mic desactivado
       realAudioTrack.enabled = false;
     }
 
@@ -287,7 +289,6 @@
       talkBtn.classList.toggle('active', pressingTalk);
       talkBtn.textContent = pressingTalk ? '🔇 Silencio' : '🔊 Hablar';
       sendMessage({ type: 'talk', speaking: pressingTalk });
-      // Activación/desactivación instantánea:
       if (realAudioTrack) realAudioTrack.enabled = pressingTalk;
     });
 
