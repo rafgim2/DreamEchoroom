@@ -77,7 +77,6 @@
     }
     .midi-controls select {
       padding: .4em; font-size: 1em;
-      /* ancho flexible, se fija en JS */
       width: auto;
     }
     #midiStatus, #midiSendStatus {
@@ -123,9 +122,7 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple>
-            <!-- opciones dinámicas -->
-          </select>
+          <select id="midiOutSelect" multiple></select>
         </div>
         <div id="midiStatus"></div>
       </div>
@@ -201,8 +198,8 @@
             await handleSignal(msg);
             break;
           case 'talk':
-            // solo para UI del remoto
             remoteSpeaking = msg.speaking;
+            // podrías usar remoteSpeaking para UI, pero no para tu mic
             break;
         }
       };
@@ -278,16 +275,11 @@
 
     async function initLocalVideo() {
       const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
+      realAudioTrack = stream.getAudioTracks()[0];
       localVideo.srcObject = stream;
-      for (const track of stream.getTracks()) {
-        const sender = pc.addTrack(track, stream);
-        if (track.kind === 'audio') audioSender = sender;
-      }
-    }
-
-    function updateMicState() {
-      if (!realAudioTrack) return;
-      realAudioTrack.enabled = pressingTalk;
+      audioSender = pc.addTrack(realAudioTrack, stream);
+      // Por defecto muted:
+      realAudioTrack.enabled = false;
     }
 
     talkBtn.addEventListener('click', () => {
@@ -295,10 +287,8 @@
       talkBtn.classList.toggle('active', pressingTalk);
       talkBtn.textContent = pressingTalk ? '🔇 Silencio' : '🔊 Hablar';
       sendMessage({ type: 'talk', speaking: pressingTalk });
-      // activa o desactiva el micrófono inmediatamente
-      if (audioSender && audioSender.track) {
-        audioSender.track.enabled = pressingTalk;
-      }
+      // Activación/desactivación instantánea:
+      if (realAudioTrack) realAudioTrack.enabled = pressingTalk;
     });
 
     async function setupMIDI() {
@@ -309,13 +299,24 @@
       // Salidas MIDI (múltiple)
       midiOutSelect.innerHTML = '';
       if (midiOutputs.length) {
-        midiOutputs.forEach((o,i) => { const opt = document.createElement('option'); opt.value = i; opt.textContent = o.name; midiOutSelect.appendChild(opt); });
+        midiOutputs.forEach((o,i) => {
+          const opt = document.createElement('option');
+          opt.value = i;
+          opt.textContent = o.name;
+          midiOutSelect.appendChild(opt);
+        });
         midiOutSelect.size = Math.min(midiOutputs.length, 4);
         midiOutSelect.onchange = () => {
-          selectedMidiOuts = Array.from(midiOutSelect.selectedOptions).map(o => midiOutputs[+o.value]);
-          midiStatus.textContent = selectedMidiOuts.length ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}` : '';
+          selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
+                                .map(o => midiOutputs[+o.value]);
+          midiStatus.textContent = selectedMidiOuts.length
+            ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
+            : '';
         };
-        if (midiOutputs.length === 1) midiOutSelect.options[0].selected = true, midiOutSelect.onchange();
+        if (midiOutputs.length === 1) {
+          midiOutSelect.options[0].selected = true;
+          midiOutSelect.onchange();
+        }
       } else {
         midiOutSelect.innerHTML = '<option>(No hay salidas MIDI)</option>';
         midiOutSelect.size = 1;
@@ -326,19 +327,28 @@
       if (midiInputs.length) {
         const selIn = document.createElement('select');
         selIn.innerHTML = '<option value="">-- Elige entrada MIDI --</option>';
-        midiInputs.forEach((i,k) => { selIn.innerHTML += `<option value="${k}">${i.name}</option>`; });
+        midiInputs.forEach((i,k) => {
+          selIn.innerHTML += `<option value="${k}">${i.name}</option>`;
+        });
         selIn.onchange = () => {
           if (midiInDevice) midiInDevice.onmidimessage = null;
           midiInDevice = selIn.value !== '' ? midiInputs[+selIn.value] : null;
           if (midiInDevice) {
             midiInDevice.onmidimessage = ({ data }) => {
-              if (midiChannel && midiChannel.readyState === 'open') midiChannel.send(JSON.stringify({ data: Array.from(data) }));
+              if (midiChannel && midiChannel.readyState === 'open') {
+                midiChannel.send(JSON.stringify({ data: Array.from(data) }));
+              }
             };
             midiSendStatus.textContent = `Enviando MIDI desde: ${midiInDevice.name}`;
-          } else midiSendStatus.textContent = '';
+          } else {
+            midiSendStatus.textContent = '';
+          }
         };
         midiInSelectCont.appendChild(selIn);
-        if (midiInputs.length === 1) selIn.value = '0', selIn.onchange();
+        if (midiInputs.length === 1) {
+          selIn.value = '0';
+          selIn.onchange();
+        }
       } else {
         midiInSelectCont.textContent = '(No hay entradas MIDI físicas conectadas)';
       }
@@ -348,9 +358,18 @@
       const [status, note, vel] = msg.data;
       const cmd = status & 0xf0;
       const noteName = Tone.Frequency(note, 'midi').toNote();
-      if (cmd === 0x90 && vel > 0) piano.fillKey(noteName);
-      else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) piano.clearKey(noteName);
-      selectedMidiOuts.forEach(dev => dev.send(new Uint8Array(msg.data)));
+
+      // iluminar teclado
+      if (cmd === 0x90 && vel > 0) {
+        piano.fillKey(noteName);
+      } else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) {
+        piano.clearKey(noteName);
+      }
+
+      // reenviar a salidas seleccionadas
+      selectedMidiOuts.forEach(dev => {
+        dev.send(new Uint8Array(msg.data));
+      });
     }
   </script>
 </body>
