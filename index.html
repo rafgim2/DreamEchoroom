@@ -193,10 +193,16 @@
       };
       ws.onmessage = async ({ data }) => {
         const msg = JSON.parse(typeof data === 'string' ? data : await data.text());
-        if (msg.pin !== pin) return;
+
+        // 1) Estadísticas: actualizar siempre
         if (msg.type === 'stats') {
           usuariosEl.textContent = `Usuarios conectados: ${msg.clients}`;
-        } else if (msg.type === 'signal') {
+          return;
+        }
+        // 2) Para el resto, filtrar por pin
+        if (msg.pin !== pin) return;
+
+        if (msg.type === 'signal') {
           await handleSignal(msg);
         } else if (msg.type === 'talk') {
           remoteSpeaking = msg.speaking;
@@ -210,7 +216,6 @@
     }
 
     function sendPing() {
-      // El servidor escucha 'ping' para reenviar stats
       ws.send(JSON.stringify({ type: 'ping', pin }));
     }
 
