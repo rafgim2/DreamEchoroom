@@ -123,9 +123,7 @@
       <div class="midi-section">
         <h3>MIDI recibido (del otro participante):</h3>
         <div class="midi-controls">
-          <select id="midiOutSelect" multiple>
-            <!-- opciones dinámicas -->
-          </select>
+          <select id="midiOutSelect" multiple></select>
         </div>
         <div id="midiStatus"></div>
       </div>
@@ -148,7 +146,7 @@
 
   <script>
     let pin, ws, pc, piano;
-    let realAudioTrack, silentAudioTrack, audioSender;
+    let realAudioTrack, audioSender;
     let pressingTalk = false, remoteSpeaking = false;
     let midiAccess, midiInputs = [], midiOutputs = [];
     let selectedMidiOuts = [], midiInDevice, midiChannel;
@@ -276,38 +274,23 @@
       return connection;
     }
 
-    function createSilentAudioTrack() {
-      const ctx = new (window.AudioContext||window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      osc.frequency.value = 0;
-      const dst = ctx.createMediaStreamDestination();
-      osc.connect(dst);
-      osc.start();
-      setTimeout(()=>osc.stop(),100);
-      return dst.stream.getAudioTracks()[0];
-    }
-
     async function initLocalVideo() {
       const stream = await navigator.mediaDevices.getUserMedia({ video:true,audio:true });
       realAudioTrack = stream.getAudioTracks()[0];
-      silentAudioTrack = createSilentAudioTrack();
       localVideo.srcObject = stream;
-      for (const track of stream.getTracks()) {
-        const sender = pc.addTrack(track, stream);
-        if (track.kind === 'audio') audioSender = sender;
-      }
-      if (audioSender) audioSender.replaceTrack(silentAudioTrack);
+
+      // Añadimos solo la pista real y la controlamos con enabled:
+      audioSender = pc.addTrack(realAudioTrack, stream);
+      // Al inicio, deshabilitamos la pista para que quede en silencio:
+      realAudioTrack.enabled = false;
     }
 
     function updateMicState() {
-      if (!audioSender) return;
-      const track = (pressingTalk && !remoteSpeaking)
-                    ? realAudioTrack
-                    : silentAudioTrack;
-      if (audioSender.track !== track) audioSender.replaceTrack(track);
+      if (!realAudioTrack) return;
+      // habilita solo si el usuario presiona hablar Y no está hablando el remoto
+      realAudioTrack.enabled = pressingTalk && !remoteSpeaking;
     }
 
-    // Toggle para el botón de hablar: texto y color
     talkBtn.addEventListener('click', () => {
       pressingTalk = !pressingTalk;
       talkBtn.classList.toggle('active', pressingTalk);
@@ -335,8 +318,7 @@
           selectedMidiOuts = Array.from(midiOutSelect.selectedOptions)
                                 .map(o => midiOutputs[+o.value]);
           midiStatus.textContent = selectedMidiOuts.length
-            ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}`
-            : '';
+            ? `MIDI OUT: ${selectedMidiOuts.map(d=>d.name).join(', ')}` : '';
         };
         if (midiOutputs.length === 1) {
           midiOutSelect.options[0].selected = true;
